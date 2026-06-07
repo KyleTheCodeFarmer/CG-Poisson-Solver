@@ -32,6 +32,21 @@ void compute_Ax(const std::vector<double>& x,
     }
 }
 
+double dot_product(const std::vector<double>& a,
+                   const std::vector<double>& b)
+{
+    double result = 0.0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        result += a[i] * b[i];
+    }
+    return result;
+}
+
+double norm(const std::vector<double>& v)
+{
+    return std::sqrt(dot_product(v, v));
+}
+
 int main()
 {
     const int Nx = 256;
@@ -57,14 +72,15 @@ int main()
 
     compute_Ax(phi_exact, Aphi_exact, Nx, Ny, h);
 
-    const int center_i = Nx / 2;
-    const int center_j = Ny / 2;
-    const int center = idx(center_i, center_j, Nx);
+    std::vector<double> residual(Nx * Ny, 0.0);
+
+    for (size_t k = 0; k < residual.size(); ++k) {
+        residual[k] = rhs[k] - Aphi_exact[k];
+    }
+
 
     std::cout << "CG Poisson Solver Project\n";
-    std::cout << "phi_exact(center) = " << phi_exact[center] << "\n";
-    std::cout << "rhs(center)       = " << rhs[center] << "\n";
-    std::cout << "Aphi_exact(center)= " << Aphi_exact[center] << "\n";
+    std::cout << "||rhs - Aphi_exact|| = " << norm(residual) << "\n";
 
     return 0;
 }

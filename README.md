@@ -18,4 +18,16 @@ For the center-point check, I obtained:
 ```text
 rhs(center)        = 19.7385
 Aphi_exact(center) = 19.7382
+```
 
+### Global Residual Check
+
+- To check the accuracy of `compute_Ax()` after finite-difference discretization, I computed the global residual:
+
+```text
+residual = rhs - A*phi_exact
+```
+
+- This checks how well the discrete operator approximates `-laplacian(phi_exact)` over the whole grid.
+
+- To compute the residual norm, I added two helper functions: `dot_product()` and `norm()`.
