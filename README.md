@@ -31,3 +31,31 @@ residual = rhs - A*phi_exact
 - This checks how well the discrete operator approximates `-laplacian(phi_exact)` over the whole grid.
 
 - To compute the residual norm, I added two helper functions: `dot_product()` and `norm()`.
+
+### Basic CG Solver
+
+- Add a simple Conjugate Gradient solver for the linear system:
+
+```text
+A*phi = rhs
+```
+
+- To check the CG solver, I computed two quantities:
+
+```text
+CG residual = rhs - A*phi
+phi_error   = phi - phi_exact
+```
+
+- The CG residual checks whether the numerical solution satisfies the discrete linear system.
+- The phi error checks whether the numerical solution is close to the exact solution.
+
+For the current test case, I obtained:
+
+```text
+CG iterations = 1
+CG residual   = 3.87191e-09
+CG solution error = 0.00161269
+```
+
+- The CG method converges in one iteration for this simple test case because `sin(pi x) sin(pi y)` is an eigenmode of the discrete Laplacian operator.

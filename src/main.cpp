@@ -47,6 +47,55 @@ double norm(const std::vector<double>& v)
     return std::sqrt(dot_product(v, v));
 }
 
+int CG(std::vector<double>& phi,
+        const std::vector<double>& rhs,
+        int Nx,
+        int Ny,
+        double h,
+        int max_iter,
+        double tol)
+{
+    std::vector<double> r(rhs.size(), 0.0);
+    std::vector<double> p(rhs.size(), 0.0);
+    std::vector<double> Ap(rhs.size(), 0.0);
+
+    compute_Ax(phi, Ap, Nx, Ny, h);
+
+    for (size_t k = 0; k < rhs.size(); ++k) {
+        r[k] = rhs[k] - Ap[k];
+        p[k] = r[k];
+    }
+
+    double dprold = dot_product(r, r);
+
+    for (int iter = 0; iter < max_iter; ++iter) {
+        compute_Ax(p, Ap, Nx, Ny, h);
+
+        const double alpha = dprold / dot_product(p, Ap);
+
+        for (size_t k = 0; k < phi.size(); ++k) {
+            phi[k] += alpha * p[k];
+            r[k] -= alpha * Ap[k];
+        }
+
+        const double dprnew = dot_product(r, r);
+
+        if (std::sqrt(dprnew) < tol) {
+            return iter + 1;
+        }
+
+        const double beta = dprnew / dprold;
+
+        for (size_t k = 0; k < p.size(); ++k) {
+            p[k] = r[k] + beta * p[k];
+        }
+
+        dprold = dprnew;
+    }
+
+    return max_iter;
+}
+
 int main()
 {
     const int Nx = 256;
@@ -57,7 +106,6 @@ int main()
     std::vector<double> phi_exact(Nx * Ny, 0.0);
     std::vector<double> rhs(Nx * Ny, 0.0);
     std::vector<double> phi(Nx * Ny, 0.0);
-    std::vector<double> Aphi_exact(Nx * Ny, 0.0);
 
     for (int j = 0; j < Ny; ++j) {
         for (int i = 0; i < Nx; ++i) {
@@ -70,17 +118,35 @@ int main()
         }
     }
 
-    compute_Ax(phi_exact, Aphi_exact, Nx, Ny, h);
+    const int max_iter = 10000;
+    const double tol = 1e-8;
 
-    std::vector<double> residual(Nx * Ny, 0.0);
+    int cg_iterations = CG(phi, rhs, Nx, Ny, h, max_iter, tol);
 
-    for (size_t k = 0; k < residual.size(); ++k) {
-        residual[k] = rhs[k] - Aphi_exact[k];
+    std::vector<double> Aphi(Nx * Ny, 0.0);
+    std::vector<double> cg_residual(Nx * Ny, 0.0);
+
+    compute_Ax(phi, Aphi, Nx, Ny, h);
+
+    for (size_t k = 0; k < cg_residual.size(); ++k) {
+        cg_residual[k] = rhs[k] - Aphi[k];
+    }
+
+    std::vector<double> CG_error(Nx * Ny, 0.0);
+
+    for (size_t k = 0; k < CG_error.size(); ++k) {
+        CG_error[k] = phi[k] - phi_exact[k];
     }
 
 
+    //print the results
     std::cout << "CG Poisson Solver Project\n";
-    std::cout << "||rhs - Aphi_exact|| = " << norm(residual) << "\n";
+    
+    std::cout << "CG iterations = " << cg_iterations << "\n";
+    std::cout << "CG residual   = " << norm(cg_residual) << "\n";
+    std::cout << "CG solution error = " << norm(CG_error) << "\n";
+
+  
 
     return 0;
 }
