@@ -73,3 +73,48 @@ SOR iterations = 1061
 SOR residual   = 9.95666e-09
 SOR solution error = 0.00652833
 ```
+
+### Timing Test (step 1)
+
+- Add wall-clock timing for both CG and SOR.
+- I ran the simulation again using a `64 x 64` grid.
+
+```text
+CG iterations = 1
+CG time = 2.7083e-05 s
+CG residual   = 6.72534e-11
+CG solution error = 0.00652833
+
+SOR iterations = 1061
+SOR time = 0.0372997 s
+SOR residual   = 9.95666e-09
+SOR solution error = 0.00652833
+```
+
+- Since the current test case uses a simple source term from `phi_exact = sin(pi x) sin(pi y)`, CG converges in only one iteration.
+- Next, I tested a more complicated source term to produce a more meaningful comparison.
+
+### Timing Test (step 2)
+
+- I changed the exact solution to:
+
+```text
+phi_exact = sin(pi x) sin(pi y) + 0.5 sin(3pi x) sin(3pi y)
+```
+
+- This gives a more complicated `rhs`, so CG needs more iterations.
+- I ran the simulation using a `64 x 64` grid.
+
+```text
+CG iterations = 4
+CG time = 6.6375e-05 s
+CG residual   = 7.67349e-09
+CG solution error = 0.0301227
+
+SOR iterations = 1061
+SOR time = 0.0380466 s
+SOR residual   = 9.96279e-09
+SOR solution error = 0.0301227
+```
+
+- The CG and SOR solution errors are almost the same because both methods solve the same discrete system.

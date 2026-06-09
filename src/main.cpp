@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <vector>
+#include <chrono>
 
 int idx(int i, int j, int Nx)
 {
@@ -156,10 +157,15 @@ int main()
         for (int i = 0; i < Nx; ++i) {
             const double x = i * h;
             const double y = j * h;
-            const double exact = std::sin(pi * x) * std::sin(pi * y);
+            const double term1 = std::sin(pi * x) * std::sin(pi * y);
+            const double term2 = std::sin(3.0 * pi * x) * std::sin(3.0 * pi * y);
+
+            const double exact = term1 + 0.5 * term2;
+            const double source = -2.0 * pi * pi * term1
+                                - 0.5 * 18.0 * pi * pi * term2;
 
             phi_exact[idx(i, j, Nx)] = exact;
-            rhs[idx(i, j, Nx)] = -2.0 * pi * pi * exact;
+            rhs[idx(i, j, Nx)] = source;
         }
     }
 
@@ -167,22 +173,39 @@ int main()
     const double tol = 1e-8;
     const double omega = 1.8;
 
+    // CG solver
+    auto cg_start = std::chrono::high_resolution_clock::now();
+
     int cg_iterations = CG(phi, rhs, Nx, Ny, h, max_iter, tol);
+
+    auto cg_end = std::chrono::high_resolution_clock::now();
+
+    double cg_time = std::chrono::duration<double>(cg_end - cg_start).count();
+
+    // SOR solver
+    auto sor_start = std::chrono::high_resolution_clock::now();
+
     int sor_iterations = SOR(phi_sor, rhs, Nx, Ny, h, omega, max_iter, tol);
 
-    std::vector<double> Aphi(Nx * Ny, 0.0);
+    auto sor_end = std::chrono::high_resolution_clock::now();
+
+    double sor_time = std::chrono::duration<double>(sor_end - sor_start).count();
+
+    //compute residuals
+    std::vector<double> Aphi_cg(Nx * Ny, 0.0);
     std::vector<double> cg_residual(Nx * Ny, 0.0);
     std::vector<double> Aphi_sor(Nx * Ny, 0.0);
     std::vector<double> sor_residual(Nx * Ny, 0.0);
 
-    compute_Ax(phi, Aphi, Nx, Ny, h);
+    compute_Ax(phi, Aphi_cg, Nx, Ny, h);
     compute_Ax(phi_sor, Aphi_sor, Nx, Ny, h);
 
     for (size_t k = 0; k < cg_residual.size(); ++k) {
-        cg_residual[k] = rhs[k] - Aphi[k];
+        cg_residual[k] = rhs[k] - Aphi_cg[k];
         sor_residual[k] = rhs[k] - Aphi_sor[k];
     }
 
+    //compute solution errors
     std::vector<double> CG_error(Nx * Ny, 0.0);
     std::vector<double> SOR_error(Nx * Ny, 0.0);
 
@@ -196,10 +219,12 @@ int main()
     std::cout << "Size of the grid: " << Nx << " x " << Ny << "\n";
     std::cout << "=============================================" << "\n";
     std::cout << "CG iterations = " << cg_iterations << "\n";
+    std::cout << "CG time = " << cg_time << " s\n";
     std::cout << "CG residual   = " << norm(cg_residual) << "\n";
     std::cout << "CG solution error = " << norm(CG_error) << "\n";
     std::cout << "=============================================" << "\n";
     std::cout << "SOR iterations = " << sor_iterations << "\n";
+    std::cout << "SOR time = " << sor_time << " s\n";
     std::cout << "SOR residual   = " << norm(sor_residual) << "\n";
     std::cout << "SOR solution error = " << norm(SOR_error) << "\n";
     std::cout << "=============================================" << "\n";
