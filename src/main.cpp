@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cmath>
-#include <iomanip>
 #include <iostream>
 #include <vector>
 
@@ -10,10 +9,10 @@ int idx(int i, int j, int Nx)
 }
 
 void compute_Ax(const std::vector<double>& x,
-             std::vector<double>& Ax,
-             int Nx,
-             int Ny,
-             double h)
+                std::vector<double>& Ax,
+                int Nx,
+                int Ny,
+                double h)
 {
     std::fill(Ax.begin(), Ax.end(), 0.0);
 
@@ -23,11 +22,11 @@ void compute_Ax(const std::vector<double>& x,
         for (int i = 1; i < Nx - 1; ++i) {
             const int k = idx(i, j, Nx);
 
-            Ax[k] = (4.0 * x[k]
-                     - x[idx(i + 1, j, Nx)]
-                     - x[idx(i - 1, j, Nx)]
-                     - x[idx(i, j + 1, Nx)]
-                     - x[idx(i, j - 1, Nx)]) * inv_h2;
+            Ax[k] = (x[idx(i + 1, j, Nx)]
+                     + x[idx(i - 1, j, Nx)]
+                     + x[idx(i, j + 1, Nx)]
+                     + x[idx(i, j - 1, Nx)]
+                     - 4.0 * x[k]) * inv_h2;
         }
     }
 }
@@ -114,7 +113,7 @@ int main()
             const double exact = std::sin(pi * x) * std::sin(pi * y);
 
             phi_exact[idx(i, j, Nx)] = exact;
-            rhs[idx(i, j, Nx)] = 2.0 * pi * pi * exact;
+            rhs[idx(i, j, Nx)] = -2.0 * pi * pi * exact;
         }
     }
 
@@ -138,15 +137,11 @@ int main()
         CG_error[k] = phi[k] - phi_exact[k];
     }
 
-
     //print the results
     std::cout << "CG Poisson Solver Project\n";
-    
     std::cout << "CG iterations = " << cg_iterations << "\n";
     std::cout << "CG residual   = " << norm(cg_residual) << "\n";
     std::cout << "CG solution error = " << norm(CG_error) << "\n";
-
-  
 
     return 0;
 }

@@ -9,15 +9,15 @@
 - Used `idx(i, j, Nx)` to map 2D indices to 1D array indices.
 - Implemented `compute_Ax()`.
 - This computes `A*x` without explicitly constructing the matrix `A`.
-- The operator corresponds to the finite-difference approximation of `-laplacian`.
+- The operator corresponds to the finite-difference approximation of `laplacian`.
 - To check this operator, I used the example `phi_exact = sin(pi x) sin(pi y)`.
 - Verified the implementation by comparing `A*phi_exact` with `rhs`.
 
 For the center-point check, I obtained:
 
 ```text
-rhs(center)        = 19.7385
-Aphi_exact(center) = 19.7382
+rhs(center)        = -19.7385
+Aphi_exact(center) = -19.7382
 ```
 
 ### Global Residual Check
@@ -28,7 +28,7 @@ Aphi_exact(center) = 19.7382
 residual = rhs - A*phi_exact
 ```
 
-- This checks how well the discrete operator approximates `-laplacian(phi_exact)` over the whole grid.
+- This checks how well the discrete operator approximates `laplacian(phi_exact)` over the whole grid.
 
 - To compute the residual norm, I added two helper functions: `dot_product()` and `norm()`.
 
@@ -54,7 +54,7 @@ For the current test case, I obtained:
 
 ```text
 CG iterations = 1
-CG residual   = 3.87191e-09
+CG residual   = 4.14421e-09
 CG solution error = 0.00161269
 ```
 
