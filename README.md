@@ -59,3 +59,17 @@ CG solution error = 0.00161269
 ```
 
 - The CG method converges in one iteration for this simple test case because `sin(pi x) sin(pi y)` is an eigenmode of the discrete Laplacian operator.
+
+### Basic SOR Solver
+
+- Add a simple SOR solver to compare with CG.
+- I used `omega = 1.8` for the relaxation factor.
+- To check the SOR solver, I computed the residual and solution error.
+
+For `N = 64`, I obtained:
+
+```text
+SOR iterations = 1061
+SOR residual   = 9.95666e-09
+SOR solution error = 0.00652833
+```
