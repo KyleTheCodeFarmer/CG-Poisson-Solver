@@ -256,6 +256,18 @@ N=256  CG iterations = 804
 
 - The solution error stayed around `1e-12`, showing that CG recovered the manufactured solution accurately.
 
+- I also compared CG with SOR using the same double Gaussian source:
+
+```text
+N=32   CG: 91 iterations, 0.000532 s     SOR: 154 iterations, 0.00139 s
+N=64   CG: 188 iterations, 0.005952 s    SOR: 772 iterations, 0.032094 s
+N=128  CG: 388 iterations, 0.030636 s    SOR: 2911 iterations, 0.399823 s
+N=256  CG: 804 iterations, 0.273089 s    SOR: 13799 iterations, 8.21103 s
+```
+
+- The performance gap is smaller than in the simpler sine-mode test because the double Gaussian source requires many more CG iterations.
+- However, CG is still much faster than SOR for all tested grid sizes.
+
 - While testing this source, I found two important implementation details.
 
 - First, the solver uses zero Dirichlet boundary conditions:

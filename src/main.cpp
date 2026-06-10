@@ -367,7 +367,7 @@ int main()
     const int max_iter = 100000;
     const double tol = 1e-8;
     const double omega = 1.8;
-    const bool run_sor = false;  // Set whether to run SOR in the grid scaling benchmark(it would increase the computation time).
+    const bool run_sor = true;  // Set whether to run SOR in the grid scaling benchmark(it would increase the computation time).
     const std::vector<int> grid_sizes = {32, 64, 128, 256};
 
     // Output the results.
@@ -390,9 +390,9 @@ int main()
 
     // Run the grid scaling benchmark.
 #ifdef _OPENMP
-    omp_set_num_threads(8);
+    omp_set_num_threads(1);
 #endif
-    std::cout << "Grid scaling benchmark uses 8 threads.\n";
+    std::cout << "Grid scaling benchmark uses 1 thread.\n";
 
     for (int N : grid_sizes) {
         const BenchmarkResult result = simulation(N, max_iter, tol, omega, run_sor);
