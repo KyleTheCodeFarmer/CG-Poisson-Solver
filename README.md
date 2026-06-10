@@ -118,3 +118,34 @@ SOR solution error = 0.0301227
 ```
 
 - The CG and SOR solution errors are almost the same because both methods solve the same discrete system.
+
+### Scaling Benchmark
+
+- Add a scaling loop to run the solver with different grid sizes:
+
+```text
+N = 32, 64, 128, 256
+```
+
+- The program outputs the benchmark data to:
+
+```text
+results/benchmark.csv
+```
+
+- The CSV file includes iterations, runtime, residual, and solution error for both CG and SOR.
+- I also added a Python plotting script:
+
+```text
+scripts/plot_results.py
+```
+
+- The script reads `results/benchmark.csv` and makes two scaling plots:
+
+```text
+results/runtime_scaling.png
+results/iteration_scaling.png
+```
+
+- Both plots use log-log scale to show the scaling behavior more clearly.
+- From these two plots, CG is much more efficient than SOR for this problem.

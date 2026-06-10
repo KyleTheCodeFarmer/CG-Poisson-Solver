@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <vector>
-#include <chrono>
 
 int idx(int i, int j, int Nx)
 {
@@ -46,6 +48,19 @@ double norm(const std::vector<double>& v)
 {
     return std::sqrt(dot_product(v, v));
 }
+
+struct BenchmarkResult {
+    int N;
+    int cells;
+    int cg_iterations;
+    int sor_iterations;
+    double cg_time;
+    double sor_time;
+    double cg_residual;
+    double sor_residual;
+    double cg_error;
+    double sor_error;
+};
 
 int CG(std::vector<double>& phi,
         const std::vector<double>& rhs,
@@ -141,10 +156,10 @@ int SOR(std::vector<double>& phi,
     return max_iter;
 }
 
-int main()
+BenchmarkResult simulation(int N, int max_iter, double tol, double omega)
 {
-    const int Nx = 64;
-    const int Ny = 64;
+    const int Nx = N;
+    const int Ny = N;
     const double pi = std::acos(-1.0);
     const double h = 1.0 / (Nx - 1);
 
@@ -153,6 +168,7 @@ int main()
     std::vector<double> phi(Nx * Ny, 0.0);
     std::vector<double> phi_sor(Nx * Ny, 0.0);
 
+    // Set the source term and the exact solution.
     for (int j = 0; j < Ny; ++j) {
         for (int i = 0; i < Nx; ++i) {
             const double x = i * h;
@@ -168,10 +184,6 @@ int main()
             rhs[idx(i, j, Nx)] = source;
         }
     }
-
-    const int max_iter = 10000;
-    const double tol = 1e-8;
-    const double omega = 1.8;
 
     // CG solver
     auto cg_start = std::chrono::high_resolution_clock::now();
@@ -191,7 +203,7 @@ int main()
 
     double sor_time = std::chrono::duration<double>(sor_end - sor_start).count();
 
-    //compute residuals
+    // Compute residuals.
     std::vector<double> Aphi_cg(Nx * Ny, 0.0);
     std::vector<double> cg_residual(Nx * Ny, 0.0);
     std::vector<double> Aphi_sor(Nx * Ny, 0.0);
@@ -205,7 +217,7 @@ int main()
         sor_residual[k] = rhs[k] - Aphi_sor[k];
     }
 
-    //compute solution errors
+    // Compute solution errors.
     std::vector<double> CG_error(Nx * Ny, 0.0);
     std::vector<double> SOR_error(Nx * Ny, 0.0);
 
@@ -214,19 +226,66 @@ int main()
         SOR_error[k] = phi_sor[k] - phi_exact[k];
     }
 
-    //print the results
+    return {
+        N,
+        Nx * Ny,
+        cg_iterations,
+        sor_iterations,
+        cg_time,
+        sor_time,
+        norm(cg_residual),
+        norm(sor_residual),
+        norm(CG_error),
+        norm(SOR_error)
+    };
+}
+
+int main()
+{
+    const int max_iter = 100000;
+    const double tol = 1e-8;
+    const double omega = 1.8;
+    const std::vector<int> grid_sizes = {32, 64, 128, 256};
+
+    // Output the benchmark results.
+    std::filesystem::create_directories("results");
+    std::ofstream csv("results/benchmark.csv");
+
+    csv << "N,cells,cg_iterations,cg_time,cg_residual,cg_error,"
+        << "sor_iterations,sor_time,sor_residual,sor_error\n";
+
     std::cout << "CG Poisson Solver Project\n";
-    std::cout << "Size of the grid: " << Nx << " x " << Ny << "\n";
-    std::cout << "=============================================" << "\n";
-    std::cout << "CG iterations = " << cg_iterations << "\n";
-    std::cout << "CG time = " << cg_time << " s\n";
-    std::cout << "CG residual   = " << norm(cg_residual) << "\n";
-    std::cout << "CG solution error = " << norm(CG_error) << "\n";
-    std::cout << "=============================================" << "\n";
-    std::cout << "SOR iterations = " << sor_iterations << "\n";
-    std::cout << "SOR time = " << sor_time << " s\n";
-    std::cout << "SOR residual   = " << norm(sor_residual) << "\n";
-    std::cout << "SOR solution error = " << norm(SOR_error) << "\n";
-    std::cout << "=============================================" << "\n";
+
+    for (int N : grid_sizes) {
+        const BenchmarkResult result = simulation(N, max_iter, tol, omega);
+
+        csv << result.N << ","
+            << result.cells << ","
+            << result.cg_iterations << ","
+            << result.cg_time << ","
+            << result.cg_residual << ","
+            << result.cg_error << ","
+            << result.sor_iterations << ","
+            << result.sor_time << ","
+            << result.sor_residual << ","
+            << result.sor_error << "\n";
+
+        // Print the results.
+        std::cout << "Size of the grid: " << result.N << " x " << result.N << "\n";
+        std::cout << "=============================================" << "\n";
+        std::cout << "CG iterations = " << result.cg_iterations << "\n";
+        std::cout << "CG time = " << result.cg_time << " s\n";
+        std::cout << "CG residual   = " << result.cg_residual << "\n";
+        std::cout << "CG solution error = " << result.cg_error << "\n";
+        std::cout << "=============================================" << "\n";
+        std::cout << "SOR iterations = " << result.sor_iterations << "\n";
+        std::cout << "SOR time = " << result.sor_time << " s\n";
+        std::cout << "SOR residual   = " << result.sor_residual << "\n";
+        std::cout << "SOR solution error = " << result.sor_error << "\n";
+        std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << "\n";
+    }
+
+    std::cout << "Benchmark CSV written to results/benchmark.csv\n";
+
     return 0;
 }
