@@ -149,3 +149,79 @@ results/iteration_scaling.png
 
 - Both plots use log-log scale to show the scaling behavior more clearly.
 - From these two plots, CG is much more efficient than SOR for this problem.
+
+### OpenMP Thread Scaling
+
+- I added OpenMP parallelization to the CG solver.
+- The main parallelized parts are:
+  - `compute_Ax()`
+  - `dot_product()`
+  - vector update loops
+  - residual and solution error calculations
+
+- I kept the previous grid scaling benchmark, which tests:
+
+```text
+N = 32, 64, 128, 256
+```
+
+- This benchmark is still used to study how the solver changes with different grid sizes.
+
+- I also added a new thread scaling benchmark for CG.
+
+- I ran the solver with different numbers of OpenMP threads:
+
+```text
+threads = 1, 2, 4, 8
+```
+- The program outputs the thread scaling result to:
+
+```text
+results/thread_scaling.csv
+```
+
+- The CSV file includes the number of threads, CG runtime, CG residual, solution error, and speedup.
+
+- I updated the plotting script:
+
+```text
+scripts/plot_results.py
+```
+
+- It now also makes two thread scaling plots:
+
+```text
+results/thread_speedup.png
+results/thread_runtime.png
+```
+
+- `thread_speedup.png` shows the CG speedup compared with the 1-thread runtime.
+
+- `thread_runtime.png` shows how the CG runtime changes when using more threads.
+
+- The speedup is computed as:
+
+```text
+speedup = time with 1 thread / time with N threads
+```
+
+- The CG iteration count does not change much with different thread numbers.
+
+- This is expected because OpenMP changes the runtime of each iteration, not the mathematical convergence of the CG method.
+
+- I also added a switch to control whether SOR is included in the benchmark because SOR takes much longer to run, especially for larger grids.
+- If I only want to test the OpenMP performance for CG, I set:
+
+```text
+run_sor = false;
+```
+
+- When I want to compare CG and SOR, I can set:
+
+```text
+run_sor = true;
+```
+
+- The SOR core update is kept serial because the standard Gauss-Seidel/SOR update has data dependency between grid points.
+- Therefore, I only parallelized the CG-related parts in this version.
+
