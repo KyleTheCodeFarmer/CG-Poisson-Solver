@@ -82,6 +82,50 @@ struct CGThreadResult {
     double speedup;
 };
 
+// Initializes the exact solution and right-hand side for the Poisson problem.
+void initialize_problem(std::vector<double>& phi_exact,
+                        std::vector<double>& rhs,
+                        int Nx,
+                        int Ny,
+                        double h)
+{
+    const double alpha = 100.0;
+
+    #pragma omp parallel for collapse(2)
+    for (int j = 0; j < Ny; ++j) {
+        for (int i = 0; i < Nx; ++i) {
+            const int k = idx(i, j, Nx);
+
+            // Boundary conditions: phi = 0 on the boundary.
+            if (i == 0 || i == Nx - 1 || j == 0 || j == Ny - 1) {
+                phi_exact[k] = 0.0;
+                continue;
+            }
+
+            const double x = i * h;
+            const double y = j * h;
+
+            const double dx1 = x - 0.35;
+            const double dy1 = y - 0.50;
+            const double r1_squared = dx1 * dx1 + dy1 * dy1;
+            const double gauss1 = std::exp(-alpha * r1_squared);
+
+            const double dx2 = x - 0.65;
+            const double dy2 = y - 0.50;
+            const double r2_squared = dx2 * dx2 + dy2 * dy2;
+            const double gauss2 = std::exp(-alpha * r2_squared);
+
+            const double bx = x * (1.0 - x);
+            const double by = y * (1.0 - y);
+
+            phi_exact[k] = bx * by * (gauss1 - 0.8 * gauss2);
+        }
+    }
+
+    // Compute the rhs by applying the Laplacian to the exact solution.
+    compute_Ax(phi_exact, rhs, Nx, Ny, h);
+}
+
 int CG(std::vector<double>& phi,
         const std::vector<double>& rhs,
         int Nx,
@@ -98,7 +142,8 @@ int CG(std::vector<double>& phi,
 
     #pragma omp parallel for
     for (size_t k = 0; k < rhs.size(); ++k) {
-        r[k] = rhs[k] - Ap[k];
+        // For CG, solve (-A)phi = -rhs, so r = (-rhs) - (-Aphi) = Aphi - rhs.
+        r[k] = Ap[k] - rhs[k];
         p[k] = r[k];
     }
 
@@ -107,12 +152,12 @@ int CG(std::vector<double>& phi,
     for (int iter = 0; iter < max_iter; ++iter) {
         compute_Ax(p, Ap, Nx, Ny, h);
 
-        const double alpha = dprold / dot_product(p, Ap);
+        const double alpha = dprold / (-dot_product(p, Ap));
 
         #pragma omp parallel for
         for (size_t k = 0; k < phi.size(); ++k) {
             phi[k] += alpha * p[k];
-            r[k] -= alpha * Ap[k];
+            r[k] += alpha * Ap[k];
         }
 
         const double dprnew = dot_product(r, r);
@@ -185,7 +230,6 @@ BenchmarkResult simulation(int N, int max_iter, double tol, double omega, bool r
 {
     const int Nx = N;
     const int Ny = N;
-    const double pi = std::acos(-1.0);
     const double h = 1.0 / (Nx - 1);
 
     std::vector<double> phi_exact(Nx * Ny, 0.0);
@@ -193,23 +237,7 @@ BenchmarkResult simulation(int N, int max_iter, double tol, double omega, bool r
     std::vector<double> phi(Nx * Ny, 0.0);
     std::vector<double> phi_sor(Nx * Ny, 0.0);
 
-    // Set the source term and the exact solution.
-    #pragma omp parallel for collapse(2)
-    for (int j = 0; j < Ny; ++j) {
-        for (int i = 0; i < Nx; ++i) {
-            const double x = i * h;
-            const double y = j * h;
-            const double term1 = std::sin(pi * x) * std::sin(pi * y);
-            const double term2 = std::sin(3.0 * pi * x) * std::sin(3.0 * pi * y);
-
-            const double exact = term1 + 0.5 * term2;
-            const double source = -2.0 * pi * pi * term1
-                                - 0.5 * 18.0 * pi * pi * term2;
-
-            phi_exact[idx(i, j, Nx)] = exact;
-            rhs[idx(i, j, Nx)] = source;
-        }
-    }
+    initialize_problem(phi_exact, rhs, Nx, Ny, h);
 
     // CG solver
     auto cg_start = std::chrono::high_resolution_clock::now();
@@ -292,30 +320,13 @@ CGThreadResult cg_thread_simulation(int threads,
 
     const int Nx = N;
     const int Ny = N;
-    const double pi = std::acos(-1.0);
     const double h = 1.0 / (Nx - 1);
 
     std::vector<double> phi_exact(Nx * Ny, 0.0);
     std::vector<double> rhs(Nx * Ny, 0.0);
     std::vector<double> phi(Nx * Ny, 0.0);
 
-    // Set the source term and the exact solution.
-    #pragma omp parallel for collapse(2)
-    for (int j = 0; j < Ny; ++j) {
-        for (int i = 0; i < Nx; ++i) {
-            const double x = i * h;
-            const double y = j * h;
-            const double term1 = std::sin(pi * x) * std::sin(pi * y);
-            const double term2 = std::sin(3.0 * pi * x) * std::sin(3.0 * pi * y);
-
-            const double exact = term1 + 0.5 * term2;
-            const double source = -2.0 * pi * pi * term1
-                                - 0.5 * 18.0 * pi * pi * term2;
-
-            phi_exact[idx(i, j, Nx)] = exact;
-            rhs[idx(i, j, Nx)] = source;
-        }
-    }
+    initialize_problem(phi_exact, rhs, Nx, Ny, h);
 
     // CG solver
     auto start = std::chrono::high_resolution_clock::now();
@@ -356,7 +367,7 @@ int main()
     const int max_iter = 100000;
     const double tol = 1e-8;
     const double omega = 1.8;
-    const bool run_sor = true;  // Set whether to run SOR in the grid scaling benchmark(it would increase the computation time).
+    const bool run_sor = false;  // Set whether to run SOR in the grid scaling benchmark(it would increase the computation time).
     const std::vector<int> grid_sizes = {32, 64, 128, 256};
 
     // Output the results.
@@ -379,9 +390,9 @@ int main()
 
     // Run the grid scaling benchmark.
 #ifdef _OPENMP
-    omp_set_num_threads(1);
+    omp_set_num_threads(8);
 #endif
-    std::cout << "Grid scaling benchmark uses 1 thread.\n";
+    std::cout << "Grid scaling benchmark uses 8 threads.\n";
 
     for (int N : grid_sizes) {
         const BenchmarkResult result = simulation(N, max_iter, tol, omega, run_sor);
@@ -403,7 +414,7 @@ int main()
     std::cout << "Benchmark CSV written to results/benchmark.csv\n";
 
     // Run the thread scaling benchmark at a fixed grid size.
-    const int thread_scaling_N = 256;
+    const int thread_scaling_N = 1024;
     const std::vector<int> thread_counts = {1, 2, 4, 8};
     double baseline_time = 0.0;
 

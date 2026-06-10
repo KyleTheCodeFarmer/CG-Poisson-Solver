@@ -225,3 +225,84 @@ run_sor = true;
 - The SOR core update is kept serial because the standard Gauss-Seidel/SOR update has data dependency between grid points.
 - Therefore, I only parallelized the CG-related parts in this version.
 
+### Double Gaussian Source and Larger Thread Test
+
+- I also tested a harder manufactured problem using two Gaussian functions:
+
+```text
+phi_exact = x(1-x)y(1-y) * (gaussian1 - 0.8 gaussian2)
+```
+
+- The Gaussian centers are `(0.35, 0.50)` and `(0.65, 0.50)`.
+- I used `alpha = 100`, so the Gaussian functions are sharper and more localized.
+- The factor `x(1-x)y(1-y)` makes `phi_exact = 0` on the boundary.
+
+- I generated `rhs` directly from `phi_exact` using `compute_Ax()` to avoid hand-deriving the Gaussian Laplacian.
+
+- This gives a manufactured discrete problem where:
+
+```text
+laplacian(phi_exact) = rhs
+```
+
+For the double Gaussian test, I obtained:
+
+```text
+N=32   CG iterations = 91
+N=64   CG iterations = 188
+N=128  CG iterations = 388
+N=256  CG iterations = 804
+```
+
+- The solution error stayed around `1e-12`, showing that CG recovered the manufactured solution accurately.
+
+- While testing this source, I found two important implementation details.
+
+- First, the solver uses zero Dirichlet boundary conditions:
+
+```text
+phi = 0 on the boundary
+```
+
+- The boundary values are fixed and are not updated by `compute_Ax()`, CG, or SOR.
+- Therefore, the boundary points should not be treated as unknown equations.
+- In the problem setup, I set the boundary values of `phi_exact` to zero and apply the discrete equation only on the interior points.
+
+- Second, the discrete Laplacian operator is negative definite.
+- Standard CG is designed for symmetric positive definite systems.
+- To use CG correctly, I keep the project convention as:
+
+```text
+laplacian(phi) = rhs
+```
+
+- But inside the CG solver, I solve the equivalent positive definite system:
+
+```text
+-laplacian(phi) = -rhs
+```
+
+- This does not change the solution `phi`.
+- It only changes the sign of both sides so that the CG method satisfies its positive-definite requirement.
+- The residual is still checked using `residual = rhs - laplacian(phi)`.
+
+- For OpenMP thread scaling, I used a larger fixed grid `N = 1024`.
+- This gives each thread more work and makes the speedup clearer.
+
+The thread scaling result was:
+
+```text
+threads=1  time=16.0301 s  speedup=1.00
+threads=2  time=8.95529 s  speedup=1.79
+threads=4  time=5.96106 s  speedup=2.69
+threads=8  time=5.98652 s  speedup=2.68
+```
+
+- The CG iteration count stayed the same for all thread counts:
+
+```text
+CG iterations = 3356
+```
+
+- The speedup improves up to 4 threads and then saturates at 8 threads.
+- This is likely due to memory bandwidth limits and synchronization overhead in the CG dot-product reductions.
