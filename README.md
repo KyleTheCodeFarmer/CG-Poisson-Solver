@@ -233,7 +233,7 @@ run_sor = true;
 phi_exact = x(1-x)y(1-y) * (gaussian1 - 0.8 gaussian2)
 ```
 
-- The Gaussian centers are `(0.35, 0.50)` and `(0.65, 0.50)`.
+- The Gaussian centers are `(0.65, 0.24)` and `(0.13, 0.90)`.
 - I used `alpha = 100`, so the Gaussian functions are sharper and more localized.
 - The factor `x(1-x)y(1-y)` makes `phi_exact = 0` on the boundary.
 
@@ -248,10 +248,10 @@ laplacian(phi_exact) = rhs
 For the double Gaussian test, I obtained:
 
 ```text
-N=32   CG iterations = 91
-N=64   CG iterations = 188
-N=128  CG iterations = 388
-N=256  CG iterations = 804
+N=32   CG iterations = 105
+N=64   CG iterations = 220
+N=128  CG iterations = 454
+N=256  CG iterations = 940
 ```
 
 - The solution error stayed around `1e-12`, showing that CG recovered the manufactured solution accurately.
@@ -259,10 +259,10 @@ N=256  CG iterations = 804
 - I also compared CG with SOR using the same double Gaussian source:
 
 ```text
-N=32   CG: 91 iterations, 0.000532 s     SOR: 154 iterations, 0.00139 s
-N=64   CG: 188 iterations, 0.005952 s    SOR: 772 iterations, 0.032094 s
-N=128  CG: 388 iterations, 0.030636 s    SOR: 2911 iterations, 0.399823 s
-N=256  CG: 804 iterations, 0.273089 s    SOR: 13799 iterations, 8.21103 s
+N=32   CG: 105 iterations, 0.000589 s    SOR: 139 iterations, 0.001163 s
+N=64   CG: 220 iterations, 0.004768 s    SOR: 801 iterations, 0.028318 s
+N=128  CG: 454 iterations, 0.033666 s    SOR: 3521 iterations, 0.502923 s
+N=256  CG: 940 iterations, 0.313736 s    SOR: 14857 iterations, 8.92609 s
 ```
 
 - The performance gap is smaller than in the simpler sine-mode test because the double Gaussian source requires many more CG iterations.
@@ -304,17 +304,57 @@ laplacian(phi) = rhs
 The thread scaling result was:
 
 ```text
-threads=1  time=16.0301 s  speedup=1.00
-threads=2  time=8.95529 s  speedup=1.79
-threads=4  time=5.96106 s  speedup=2.69
-threads=8  time=5.98652 s  speedup=2.68
+threads=1  time=19.5086 s  speedup=1.00
+threads=2  time=11.9223 s  speedup=1.64
+threads=4  time=8.55634 s  speedup=2.28
+threads=8  time=8.03579 s  speedup=2.43
 ```
 
 - The CG iteration count stayed the same for all thread counts:
 
 ```text
-CG iterations = 3356
+CG iterations = 3940
 ```
 
 - The speedup improves up to 4 threads and then saturates at 8 threads.
 - This is likely due to memory bandwidth limits and synchronization overhead in the CG dot-product reductions.
+
+### Unknown Multi-Mode Source Test
+
+- Finally, I tested an unknown source problem.
+- In this test, I directly prescribed a source term with a smooth background field and two localized Gaussian sources:
+
+```text
+rhs = sine/cosine background + large Gaussian - small Gaussian
+```
+
+- Unlike the manufactured tests, there is no known `phi_exact`.
+- Therefore, I checked the solution using the residual instead of solution error:
+
+```text
+residual = rhs - laplacian(phi)
+```
+
+- For `N = 1024`, I obtained:
+
+```text
+CG iterations = 3811
+CG time       = 8.20142 s
+CG residual   = 1.23027e-07
+```
+
+- I also saved the source and solution fields:
+
+```text
+results/unknown_source.csv
+results/unknown_solution.csv
+results/unknown_source.png
+results/unknown_solution.png
+```
+
+- This is closer to a real Poisson problem, where the source term is given and the potential field `phi` is unknown.
+
+### Final Summary
+
+- Overall, the CG solver accurately solves the manufactured 2D Poisson problems and produces small residuals for the unknown source test.
+- CG is much faster than SOR for the tested grids, and OpenMP improves the runtime for larger problems, although the speedup saturates because the solver needs frequent memory access and dot-product reductions.

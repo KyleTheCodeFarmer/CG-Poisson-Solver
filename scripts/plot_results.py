@@ -12,6 +12,10 @@ RUNTIME_PLOT = ROOT / "results" / "runtime_scaling.png"
 ITERATION_PLOT = ROOT / "results" / "iteration_scaling.png"
 THREAD_SPEEDUP_PLOT = ROOT / "results" / "thread_speedup.png"
 THREAD_RUNTIME_PLOT = ROOT / "results" / "thread_runtime.png"
+UNKNOWN_SOURCE_CSV = ROOT / "results" / "unknown_source.csv"
+UNKNOWN_SOLUTION_CSV = ROOT / "results" / "unknown_solution.csv"
+UNKNOWN_SOURCE_PLOT = ROOT / "results" / "unknown_source.png"
+UNKNOWN_SOLUTION_PLOT = ROOT / "results" / "unknown_solution.png"
 
 
 def read_benchmark_csv(path):
@@ -52,6 +56,17 @@ def read_thread_csv(path):
             data["cg_speedup"].append(float(row["cg_speedup"]))
 
     return data
+
+
+def read_field_csv(path):
+    field = []
+
+    with path.open(newline="") as file:
+        reader = csv.reader(file)
+        for row in reader:
+            field.append([float(value) for value in row])
+
+    return field
 
 
 def add_grid_labels(cells, values, grid_sizes):
@@ -117,6 +132,18 @@ def plot_thread_runtime(data):
     plt.savefig(THREAD_RUNTIME_PLOT)
 
 
+def plot_field(field, output_path, title, color_label):
+    plt.figure(figsize=(6.0, 5.2), dpi=160)
+    image = plt.imshow(field, origin="lower", extent=[0, 1, 0, 1], cmap="coolwarm")
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.title(title)
+    cbar = plt.colorbar(image)
+    cbar.set_label(color_label)
+    plt.tight_layout()
+    plt.savefig(output_path)
+
+
 def main():
     data = read_benchmark_csv(CSV_PATH)
     thread_data = read_thread_csv(THREAD_CSV_PATH)
@@ -126,10 +153,19 @@ def main():
     plot_thread_speedup(thread_data)
     plot_thread_runtime(thread_data)
 
+    if UNKNOWN_SOURCE_CSV.exists() and UNKNOWN_SOLUTION_CSV.exists():
+        unknown_source = read_field_csv(UNKNOWN_SOURCE_CSV)
+        unknown_solution = read_field_csv(UNKNOWN_SOLUTION_CSV)
+        plot_field(unknown_source, UNKNOWN_SOURCE_PLOT, "Unknown Multi-Mode Source", "rhs")
+        plot_field(unknown_solution, UNKNOWN_SOLUTION_PLOT, "Solved Potential Field", "phi")
+
     print(f"Wrote {RUNTIME_PLOT}")
     print(f"Wrote {ITERATION_PLOT}")
     print(f"Wrote {THREAD_SPEEDUP_PLOT}")
     print(f"Wrote {THREAD_RUNTIME_PLOT}")
+    if UNKNOWN_SOURCE_CSV.exists() and UNKNOWN_SOLUTION_CSV.exists():
+        print(f"Wrote {UNKNOWN_SOURCE_PLOT}")
+        print(f"Wrote {UNKNOWN_SOLUTION_PLOT}")
 
 
 if __name__ == "__main__":

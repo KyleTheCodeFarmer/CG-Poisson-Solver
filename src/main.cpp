@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #ifdef _OPENMP
@@ -82,6 +83,14 @@ struct CGThreadResult {
     double speedup;
 };
 
+struct UnknownSourceResult {
+    int N;
+    int cells;
+    int iterations;
+    double time;
+    double residual;
+};
+
 // Initializes the exact solution and right-hand side for the Poisson problem.
 void initialize_problem(std::vector<double>& phi_exact,
                         std::vector<double>& rhs,
@@ -105,13 +114,13 @@ void initialize_problem(std::vector<double>& phi_exact,
             const double x = i * h;
             const double y = j * h;
 
-            const double dx1 = x - 0.35;
-            const double dy1 = y - 0.50;
+            const double dx1 = x - 0.65;
+            const double dy1 = y - 0.24;
             const double r1_squared = dx1 * dx1 + dy1 * dy1;
             const double gauss1 = std::exp(-alpha * r1_squared);
 
-            const double dx2 = x - 0.65;
-            const double dy2 = y - 0.50;
+            const double dx2 = x - 0.13;
+            const double dy2 = y - 0.90;
             const double r2_squared = dx2 * dx2 + dy2 * dy2;
             const double gauss2 = std::exp(-alpha * r2_squared);
 
@@ -124,6 +133,66 @@ void initialize_problem(std::vector<double>& phi_exact,
 
     // Compute the rhs by applying the Laplacian to the exact solution.
     compute_Ax(phi_exact, rhs, Nx, Ny, h);
+}
+
+void initialize_unknown_source(std::vector<double>& rhs,
+                               int Nx,
+                               int Ny,
+                               double h)
+{
+    const double pi = std::acos(-1.0);
+
+    #pragma omp parallel for collapse(2)
+    for (int j = 0; j < Ny; ++j) {
+        for (int i = 0; i < Nx; ++i) {
+            const int k = idx(i, j, Nx);
+
+            if (i == 0 || i == Nx - 1 || j == 0 || j == Ny - 1) {
+                rhs[k] = 0.0;
+                continue;
+            }
+
+            const double x = i * h;
+            const double y = j * h;
+
+            const double bg_sinemode =
+                0.45 * std::sin(2.0 * pi * x + 0.2) * std::sin(3.0 * pi * y)
+              + 0.30 * std::cos(4.0 * pi * x + 0.5) * std::sin(2.0 * pi * y + 0.3)
+              - 0.25 * std::sin(5.0 * pi * x + 0.9) * std::cos(4.0 * pi * y + 0.6);
+
+            const double large_dx = x - 0.34;
+            const double large_dy = y - 0.68;
+            const double large_r2 = large_dx * large_dx + large_dy * large_dy;
+            const double large_gaussian = std::exp(-30.0 * large_r2);
+
+            const double small_dx = x - 0.73;
+            const double small_dy = y - 0.31;
+            const double small_r2 = small_dx * small_dx + small_dy * small_dy;
+            const double small_gaussian = std::exp(-220.0 * small_r2);
+
+            rhs[k] = bg_sinemode
+                   + 1.25 * large_gaussian
+                   - 0.85 * small_gaussian;
+        }
+    }
+}
+
+void write_field_csv(const std::string& path,
+                     const std::vector<double>& field,
+                     int Nx,
+                     int Ny)
+{
+    std::ofstream file(path);
+
+    for (int j = 0; j < Ny; ++j) {
+        for (int i = 0; i < Nx; ++i) {
+            if (i > 0) {
+                file << ",";
+            }
+            file << field[idx(i, j, Nx)];
+        }
+        file << "\n";
+    }
 }
 
 int CG(std::vector<double>& phi,
@@ -361,6 +430,47 @@ CGThreadResult cg_thread_simulation(int threads,
     };
 }
 
+// Runs a CG simulation with an unknown source term and writes the results to CSV files.
+UnknownSourceResult unknown_source_simulation(int N,
+                                              int max_iter,
+                                              double tol)
+{
+    const int Nx = N;
+    const int Ny = N;
+    const double h = 1.0 / (Nx - 1);
+
+    std::vector<double> rhs(Nx * Ny, 0.0);
+    std::vector<double> phi(Nx * Ny, 0.0);
+
+    initialize_unknown_source(rhs, Nx, Ny, h);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    const int iterations = CG(phi, rhs, Nx, Ny, h, max_iter, tol);
+    auto end = std::chrono::high_resolution_clock::now();
+    const double time = std::chrono::duration<double>(end - start).count();
+
+    std::vector<double> Aphi(Nx * Ny, 0.0);
+    std::vector<double> residual(Nx * Ny, 0.0);
+
+    compute_Ax(phi, Aphi, Nx, Ny, h);
+
+    #pragma omp parallel for
+    for (size_t k = 0; k < residual.size(); ++k) {
+        residual[k] = rhs[k] - Aphi[k];
+    }
+
+    write_field_csv("results/unknown_source.csv", rhs, Nx, Ny);
+    write_field_csv("results/unknown_solution.csv", phi, Nx, Ny);
+
+    return {
+        N,
+        Nx * Ny,
+        iterations,
+        time,
+        norm(residual)
+    };
+}
+
 int main()
 {
     // basic parameters
@@ -447,6 +557,27 @@ int main()
     }
 
     std::cout << "Thread scaling CSV written to results/thread_scaling.csv\n";
+
+    // Run a final unknown-source CG demo.
+#ifdef _OPENMP
+    omp_set_num_threads(8);
+#endif
+    const int unknown_source_N = 1024;
+    const UnknownSourceResult unknown_result = unknown_source_simulation(
+        unknown_source_N,
+        max_iter,
+        tol
+    );
+
+    std::ofstream unknown_csv("results/unknown_summary.csv");
+    unknown_csv << "N,cells,cg_iterations,cg_time,cg_residual\n";
+    unknown_csv << unknown_result.N << ","
+                << unknown_result.cells << ","
+                << unknown_result.iterations << ","
+                << unknown_result.time << ","
+                << unknown_result.residual << "\n";
+
+    std::cout << "Unknown source CSV files written to results/unknown_summary.csv\n";
 
     return 0;
 }
